@@ -1,0 +1,6 @@
+{
+  "name": "Aevorynth Media",
+  "description": "Aevorynth is an independent digital magazine and tech publication exploring artificial intelligence, sustainable technology, digital craft, and future workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
