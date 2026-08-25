@@ -1,471 +1,307 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { Footer } from './components/Footer';
-import { ArticleCard } from './components/ArticleCard';
-import { ArticleDetail } from './components/ArticleDetail';
-import { CompliancePageViewer } from './components/CompliancePageViewer';
-import { InteractiveTools } from './components/InteractiveTools';
-import { CookieBanner } from './components/CookieBanner';
-
-import { categories } from './data/categories';
-import { articles } from './data/articles';
-import { Article } from './types';
-import { 
-  Search, BookOpen, ChevronRight, Flame, Sparkles, TrendingUp, Tag, ArrowUpDown, ChevronDown
-} from 'lucide-react';
+import { EsimStore } from './components/EsimStore';
+import { MyEsims } from './components/MyEsims';
+import { EsimCheckoutModal } from './components/EsimCheckoutModal';
+import { CompatibilityModal } from './components/CompatibilityModal';
+import { CardList } from './components/CardList';
+import { CardCompare } from './components/CardCompare';
+import { RewardsCalculator } from './components/RewardsCalculator';
+import { StrategyGuide } from './components/StrategyGuide';
+import { AiConsultant } from './components/AiConsultant';
+import { CreditCard } from './data/cards';
+import { INITIAL_PURCHASED_ESIMS, ESIM_DESTINATIONS } from './data/esimData';
+import { Language, Currency, EsimDestination, EsimPackage, PurchasedEsim } from './types';
+import { Sparkles, Globe2, ShieldCheck, Zap, Wifi } from 'lucide-react';
 
 export default function App() {
-  // Theme state
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // Primary language default to English
+  const [lang, setLang] = useState<Language>('en');
+  const [currency, setCurrency] = useState<Currency>('USD');
+  const [activeTab, setActiveTab] = useState<string>('esim-store');
+  const [compareList, setCompareList] = useState<CreditCard[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // eSIM state
+  const [purchasedEsims, setPurchasedEsims] = useState<PurchasedEsim[]>(() => {
+    try {
+      const saved = localStorage.getItem('lumina_purchased_esims');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_PURCHASED_ESIMS;
   });
 
+  // Persist purchased eSIMs
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    try {
+      localStorage.setItem('lumina_purchased_esims', JSON.stringify(purchasedEsims));
+    } catch (e) {
+      console.error(e);
     }
-  }, [isDarkMode]);
+  }, [purchasedEsims]);
 
-  // View state
-  const [currentView, setCurrentView] = useState<'home' | 'article' | 'compliance' | 'tools'>('home');
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
-  const [compliancePageId, setCompliancePageId] = useState<string>('privacy-policy');
+  // Checkout modal state
+  const [checkoutTarget, setCheckoutTarget] = useState<{
+    destination: EsimDestination;
+    plan: EsimPackage;
+  } | null>(null);
 
-  // Search State
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  // Compatibility modal state
+  const [showCompatibility, setShowCompatibility] = useState<boolean>(false);
 
-  // Bookmarks
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('aevorynth_bookmarks');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const toggleBookmark = (articleId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    let updated: string[];
-    if (bookmarkedIds.includes(articleId)) {
-      updated = bookmarkedIds.filter(id => id !== articleId);
+  const handleToggleCompare = (card: CreditCard) => {
+    setErrorMessage(null);
+    const exists = compareList.some((c) => c.id === card.id);
+    if (exists) {
+      setCompareList(compareList.filter((c) => c.id !== card.id));
     } else {
-      updated = [...bookmarkedIds, articleId];
+      if (compareList.length >= 3) {
+        setErrorMessage(
+          lang === 'en'
+            ? 'Comparison tray is limited to 3 credit cards maximum!'
+            : '对比箱最多只能同时加入 3 张信用卡进行比较哦！'
+        );
+        setTimeout(() => setErrorMessage(null), 3500);
+        return;
+      }
+      setCompareList([...compareList, card]);
     }
-    setBookmarkedIds(updated);
-    localStorage.setItem('aevorynth_bookmarks', JSON.stringify(updated));
   };
 
-  // Filter & Pagination State
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'newest' | 'popular' | 'likes'>('newest');
-  const [visibleCount, setVisibleCount] = useState<number>(12);
-
-  useEffect(() => {
-    setVisibleCount(12);
-  }, [selectedCategoryId, searchQuery, selectedTag, sortBy]);
-
-  // Dummy AdSense Config for clean internal typing compatibility
-  const adConfig = {
-    publisherId: 'ca-pub-3059636267332071',
-    autoAdsEnabled: true,
-    displayMode: 'preview' as const,
-    slots: {
-      headerBanner: '',
-      inArticle: '',
-      sidebar: '',
-      bottomBanner: '',
-      stickyFooter: '',
-    },
+  const handleRemoveCompare = (card: CreditCard) => {
+    setCompareList(compareList.filter((c) => c.id !== card.id));
   };
 
-  // Navigation Handlers
-  const handleSelectArticle = (article: Article) => {
-    setSelectedArticle(article);
-    setCurrentView('article');
+  const handleClearCompare = () => {
+    setCompareList([]);
+  };
+
+  const handleSelectPlan = (destination: EsimDestination, pkg: EsimPackage) => {
+    setCheckoutTarget({ destination, plan: pkg });
+  };
+
+  const handleCompletePurchase = (newEsim: PurchasedEsim) => {
+    setPurchasedEsims((prev) => [newEsim, ...prev]);
+    setCheckoutTarget(null);
+    setActiveTab('my-esims');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNavigateCompliance = (pageId: string) => {
-    setCompliancePageId(pageId);
-    setCurrentView('compliance');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleTopUp = (esim: PurchasedEsim) => {
+    const dest = ESIM_DESTINATIONS.find((d) => d.id === esim.destinationId) || ESIM_DESTINATIONS[0];
+    const pkg = dest.packages[0];
+    setCheckoutTarget({ destination: dest, plan: pkg });
   };
-
-  // Popular tags extraction for filter bar
-  const popularTags = Array.from(
-    new Set(articles.flatMap(a => a.tags))
-  ).slice(0, 14);
-
-  // Filtered & Sorted Articles
-  const filteredArticles = articles.filter(article => {
-    const matchesCategory = selectedCategoryId === null || article.categoryId === selectedCategoryId;
-    const matchesTag = selectedTag === null || article.tags.includes(selectedTag);
-    const matchesSearch = searchQuery.trim() === '' || 
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesCategory && matchesTag && matchesSearch;
-  }).sort((a, b) => {
-    if (sortBy === 'popular') return b.views - a.views;
-    if (sortBy === 'likes') return b.likes - a.likes;
-    return new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime();
-  });
-
-  const visibleArticles = filteredArticles.slice(0, visibleCount);
-  const featuredArticle = articles.find(a => a.featured) || articles[0];
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 text-stone-900 dark:text-stone-100 flex flex-col font-sans transition-colors duration-200 selection:bg-emerald-500 selection:text-white">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white flex flex-col">
+      {/* Navigation Header */}
       <Header
-        categories={categories}
-        currentView={currentView}
-        selectedCategoryId={selectedCategoryId}
-        onNavigateHome={() => {
-          setCurrentView('home');
-          setSelectedCategoryId(null);
-          setSelectedTag(null);
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onSelectCategory={(catId) => {
-          setSelectedCategoryId(catId);
-          setSelectedTag(null);
-          setCurrentView('home');
-        }}
-        onNavigateCompliance={handleNavigateCompliance}
-        onOpenSearch={() => setSearchOpen(true)}
-        onOpenTools={() => setCurrentView('tools')}
-        isDarkMode={isDarkMode}
-        onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        compareCount={compareList.length}
+        myEsimsCount={purchasedEsims.length}
+        lang={lang}
+        setLang={setLang}
+        currency={currency}
+        setCurrency={setCurrency}
       />
 
-      {/* Main View Router */}
-      <main className="flex-1">
-        {currentView === 'home' && (
-          <div className="space-y-8 pb-16">
-            {/* Top Trending Ticker / Announcement Bar */}
-            <div className="bg-stone-900 text-stone-200 text-xs py-2.5 px-4 border-b border-stone-800 shadow-inner">
-              <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-                  <span className="bg-emerald-600 text-white font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" /> 100+ 精选深度长文库
-                  </span>
-                  <span className="text-stone-300 font-medium">
-                    {featuredArticle.title}
-                  </span>
-                </div>
-                <div className="hidden md:flex items-center gap-4 text-stone-400 text-[11px]">
-                  <span>权威独立刊物</span>
-                  <span>•</span>
-                  <span>覆盖5大前沿视角</span>
-                  <span>•</span>
-                  <span>共100篇精品文献</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Hero Section if no category or search filter */}
-            {selectedCategoryId === null && searchQuery === '' && selectedTag === null && (
-              <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
-                <div
-                  onClick={() => handleSelectArticle(featuredArticle)}
-                  className="group cursor-pointer relative overflow-hidden rounded-3xl bg-stone-900 text-white shadow-xl grid grid-cols-1 lg:grid-cols-12 items-center border border-stone-800 transition-all hover:border-emerald-500/50"
-                >
-                  {/* Left content */}
-                  <div className="p-6 sm:p-10 lg:col-span-7 space-y-4 z-10">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-emerald-500 text-stone-950 text-xs font-black px-3 py-1 rounded-lg uppercase tracking-wider flex items-center gap-1 shadow-xs">
-                        <Flame className="w-3.5 h-3.5" /> 焦点原创深度长文
-                      </span>
-                      <span className="text-xs text-stone-300 font-mono">
-                        {featuredArticle.categoryNameCn}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black font-serif leading-tight group-hover:text-emerald-400 transition-colors">
-                      {featuredArticle.title}
-                    </h2>
-
-                    <p className="text-xs sm:text-sm text-stone-300 line-clamp-3 leading-relaxed">
-                      {featuredArticle.summary}
-                    </p>
-
-                    <div className="pt-2 flex items-center gap-4 text-xs text-stone-300">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={featuredArticle.author.avatar}
-                          alt={featuredArticle.author.name}
-                          className="w-7 h-7 rounded-full object-cover ring-1 ring-emerald-400"
-                        />
-                        <span className="font-semibold text-white">{featuredArticle.author.name}</span>
-                      </div>
-                      <span>•</span>
-                      <span>{featuredArticle.readTimeMinutes} 分钟深度阅读</span>
-                    </div>
-                  </div>
-
-                  {/* Right Image */}
-                  <div className="lg:col-span-5 h-64 lg:h-full relative overflow-hidden">
-                    <img
-                      src={featuredArticle.coverImage}
-                      alt={featuredArticle.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 opacity-90"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t lg:bg-gradient-to-r from-stone-900 via-stone-900/40 to-transparent" />
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Popular Tag Filters */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-xs">
-                <span className="font-bold text-stone-400 flex items-center gap-1 shrink-0">
-                  <Tag className="w-3.5 h-3.5 text-emerald-500" /> 热门话题:
-                </span>
-                <button
-                  onClick={() => setSelectedTag(null)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all shrink-0 ${
-                    selectedTag === null
-                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                      : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-300 dark:hover:bg-stone-700'
-                  }`}
-                >
-                  全部话题
-                </button>
-                {popularTags.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-                    className={`px-3 py-1 rounded-full text-xs transition-all shrink-0 ${
-                      selectedTag === tag
-                        ? 'bg-emerald-600 text-white font-bold shadow-xs'
-                        : 'bg-stone-200 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-300 dark:hover:bg-stone-700'
-                    }`}
-                  >
-                    #{tag}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* Category Header & Sort Controls */}
-            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-4 mb-6 gap-4">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold font-serif text-stone-900 dark:text-stone-100 flex items-center gap-2">
-                    <span>
-                      {selectedCategoryId
-                        ? categories.find(c => c.id === selectedCategoryId)?.nameCn
-                        : '深度独立文章文库'}
-                    </span>
-                    <span className="text-xs font-normal text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                      共 {filteredArticles.length} 篇文献
-                    </span>
-                  </h2>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-                    涵盖人工智能、绿色低碳、智能家居、数字财经与现代工作流 100 篇高品质原创新作。
-                  </p>
-                </div>
-
-                {/* Sort dropdown */}
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
-                    <ArrowUpDown className="w-3.5 h-3.5 text-stone-400" />
-                    <span>排序:</span>
-                  </div>
-                  <div className="flex items-center bg-stone-200 dark:bg-stone-800 p-0.5 rounded-xl text-xs font-medium">
-                    <button
-                      onClick={() => setSortBy('newest')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        sortBy === 'newest'
-                          ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-bold shadow-xs'
-                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-                      }`}
-                    >
-                      最新发布
-                    </button>
-                    <button
-                      onClick={() => setSortBy('popular')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        sortBy === 'popular'
-                          ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-bold shadow-xs'
-                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-                      }`}
-                    >
-                      最多浏览
-                    </button>
-                    <button
-                      onClick={() => setSortBy('likes')}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        sortBy === 'likes'
-                          ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 font-bold shadow-xs'
-                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-                      }`}
-                    >
-                      最高好评
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Articles Grid */}
-              {visibleArticles.length > 0 ? (
-                <div className="space-y-10">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {visibleArticles.map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onSelectArticle={handleSelectArticle}
-                        isBookmarked={bookmarkedIds.includes(article.id)}
-                        onToggleBookmark={toggleBookmark}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Load More Control */}
-                  {visibleCount < filteredArticles.length && (
-                    <div className="text-center pt-4">
-                      <button
-                        onClick={() => setVisibleCount(prev => prev + 12)}
-                        className="inline-flex items-center gap-2 px-8 py-3.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white text-xs font-bold rounded-2xl shadow-md transition-all hover:scale-[1.02] active:scale-95 group border border-stone-800 dark:border-stone-700"
-                      >
-                        <span>加载更多文章 ({filteredArticles.length - visibleCount} 篇待加载)</span>
-                        <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform text-emerald-400" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-16 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-8 space-y-3">
-                  <BookOpen className="w-12 h-12 text-stone-300 mx-auto" />
-                  <h3 className="text-base font-bold text-stone-700 dark:text-stone-300">
-                    未找到相关匹配文章
-                  </h3>
-                  <p className="text-xs text-stone-500">
-                    请尝试重置话题标签或搜索关键词
-                  </p>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedCategoryId(null);
-                      setSelectedTag(null);
-                    }}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors"
-                  >
-                    重置筛选条件
-                  </button>
-                </div>
-              )}
-            </section>
+      {/* Main Content Stage */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Banner/Alert messages */}
+        {errorMessage && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-4 py-3 rounded-2xl shadow-sm text-center animate-bounce">
+            {errorMessage}
           </div>
         )}
 
-        {currentView === 'article' && selectedArticle && (
-          <ArticleDetail
-            article={selectedArticle}
-            relatedArticles={articles.filter(a => a.id !== selectedArticle.id).slice(0, 3)}
-            onSelectArticle={handleSelectArticle}
-            onBack={() => {
-              setCurrentView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            adConfig={adConfig}
-            isBookmarked={bookmarkedIds.includes(selectedArticle.id)}
-            onToggleBookmark={(id) => toggleBookmark(id)}
-            onNavigateCompliance={handleNavigateCompliance}
-          />
+        {/* Global eSIM Hero Banner when on eSIM store */}
+        {activeTab === 'esim-store' && (
+          <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white p-6 sm:p-10 border border-slate-800 shadow-2xl">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#2563eb,transparent_35%)] opacity-35 animate-mesh" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_75%,#06b6d4,transparent_40%)] opacity-25 animate-mesh" />
+            <div className="absolute -right-12 -bottom-12 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 max-w-3xl space-y-4">
+              <span className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-blue-500/20 text-xs font-bold font-display tracking-wide text-blue-300 border border-blue-400/20">
+                <Wifi className="h-3.5 w-3.5 text-cyan-400" />
+                <span>
+                  {lang === 'en'
+                    ? 'Instant Global Connectivity • 200+ Countries 5G eSIM'
+                    : '全球即时连接 • 200+ 国家与地区高速 5G eSIM'}
+                </span>
+              </span>
+
+              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight font-display leading-tight text-white">
+                {lang === 'en' ? (
+                  <>
+                    Borderless High-Speed Travel eSIMs <br className="hidden sm:inline" />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-300">
+                      With Multi-Channel Instant Checkout
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    无缝高速出境跨境 eSIM <br className="hidden sm:inline" />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-300">
+                      支持 Apple Pay、国际信用卡、微信支付宝与加密支付
+                    </span>
+                  </>
+                )}
+              </h1>
+
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
+                {lang === 'en'
+                  ? 'Connect immediately upon arrival in 200+ countries with Tier-1 5G/4G local networks. Zero physical SIM swaps, no exorbitant roaming fees, and automated QR provisioning within 60 seconds.'
+                  : '落地即连，畅享全球顶尖运营商原生 5G/4G 极速漫游。无需插拔实体卡，无高额漫游费账单，60秒内自动完成即时发卡与扫码激活。'}
+              </p>
+
+              {/* Fast feature metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10 text-xs">
+                <div className="flex items-center space-x-2 text-slate-200">
+                  <Globe2 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
+                  <span>{lang === 'en' ? '200+ Countries' : '覆盖 200+ 国家'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-slate-200">
+                  <Zap className="h-4 w-4 text-amber-400 flex-shrink-0" />
+                  <span>{lang === 'en' ? 'Instant QR Code' : '60秒即时交付'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-slate-200">
+                  <ShieldCheck className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+                  <span>{lang === 'en' ? 'Tier-1 Networks' : '原生高速网络'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-slate-200">
+                  <Sparkles className="h-4 w-4 text-purple-400 flex-shrink-0" />
+                  <span>{lang === 'en' ? 'Multi-Payment' : '多渠道便捷付'}</span>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
 
-        {currentView === 'compliance' && (
-          <CompliancePageViewer
-            pageId={compliancePageId}
-            onBackHome={() => {
-              setCurrentView('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            onNavigatePage={(pId) => setCompliancePageId(pId)}
-          />
+        {/* Credit Card Hero Banner when on Library */}
+        {activeTab === 'library' && (
+          <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 sm:p-10 border border-blue-950 shadow-xl">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#2563eb,transparent_40%)] opacity-30 animate-mesh" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,#06b6d4,transparent_45%)] opacity-20 animate-mesh" />
+
+            <div className="relative z-10 max-w-2xl space-y-4">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-xs font-bold font-display tracking-wide text-blue-200">
+                <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+                <span>
+                  {lang === 'en'
+                    ? 'US Travel Credit Card Rewards Intelligence'
+                    : '2026 美卡精英常旅客及点数指南'}
+                </span>
+              </span>
+              <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight font-display leading-tight">
+                {lang === 'en' ? 'Maximize Travel Points & Free Flights' : '最大化您的刷卡回血，开启奢华商旅'}
+              </h2>
+              <p className="text-xs sm:text-sm text-blue-100 leading-relaxed max-w-lg">
+                {lang === 'en'
+                  ? 'Master Chase 5/24 rules, unlock premium airline & hotel transfer partners (Hyatt, ANA, Air France), and calculate real net returns with our automated analytics.'
+                  : '深入了解 Chase 5/24 限制，精确测算哪张信用卡在您的日常开销中最省钱，配合 Gemini AI 大师亲自为您号脉推荐最佳开卡序列。'}
+              </p>
+            </div>
+          </section>
         )}
 
-        {currentView === 'tools' && (
-          <InteractiveTools />
-        )}
+        {/* Tab Router Render */}
+        <div className="transition-all duration-300">
+          {activeTab === 'esim-store' && (
+            <EsimStore
+              lang={lang}
+              currency={currency}
+              onSelectPlan={handleSelectPlan}
+              onOpenCompatibility={() => setShowCompatibility(true)}
+            />
+          )}
+
+          {activeTab === 'my-esims' && (
+            <MyEsims
+              esims={purchasedEsims}
+              lang={lang}
+              onGoToStore={() => {
+                setActiveTab('esim-store');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              onTopUp={handleTopUp}
+            />
+          )}
+
+          {activeTab === 'library' && (
+            <CardList
+              lang={lang}
+              compareList={compareList}
+              onToggleCompare={handleToggleCompare}
+              onClearCompare={handleClearCompare}
+              onGoToCompare={() => {
+                setActiveTab('compare');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+
+          {activeTab === 'compare' && (
+            <CardCompare
+              lang={lang}
+              compareList={compareList}
+              onRemoveCard={handleRemoveCompare}
+              onClearAll={handleClearCompare}
+              onGoToLibrary={() => {
+                setActiveTab('library');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
+          )}
+
+          {activeTab === 'calculator' && <RewardsCalculator lang={lang} />}
+
+          {activeTab === 'strategy' && <StrategyGuide lang={lang} />}
+
+          {activeTab === 'ai-consultant' && <AiConsultant lang={lang} />}
+        </div>
       </main>
 
-      {/* Footer */}
-      <Footer
-        categories={categories}
-        onNavigateHome={() => {
-          setCurrentView('home');
-          setSelectedCategoryId(null);
-          setSelectedTag(null);
-        }}
-        onSelectCategory={(catId) => {
-          setSelectedCategoryId(catId);
-          setSelectedTag(null);
-          setCurrentView('home');
-        }}
-        onNavigateCompliance={handleNavigateCompliance}
+      {/* Checkout Modal */}
+      <EsimCheckoutModal
+        isOpen={!!checkoutTarget}
+        onClose={() => setCheckoutTarget(null)}
+        destination={checkoutTarget?.destination || null}
+        selectedPackage={checkoutTarget?.plan || null}
+        currency={currency}
+        lang={lang}
+        onPurchaseSuccess={handleCompletePurchase}
       />
 
-      {/* Cookie Consent Banner */}
-      <CookieBanner onNavigatePrivacy={() => handleNavigateCompliance('privacy-policy')} />
+      {/* Device Compatibility Modal */}
+      <CompatibilityModal
+        isOpen={showCompatibility}
+        onClose={() => setShowCompatibility(false)}
+        lang={lang}
+      />
 
-      {/* Search Modal */}
-      {searchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-2xl max-w-xl w-full p-4 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 border-b border-stone-200 dark:border-stone-800 pb-3">
-              <Search className="w-5 h-5 text-stone-400" />
-              <input
-                type="text"
-                autoFocus
-                placeholder="搜索 100 篇深度文献（例如：Ollama、Matter、全天候资产、第二大脑...）"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full text-sm bg-transparent border-none focus:outline-none text-stone-900 dark:text-stone-100 placeholder-stone-400"
-              />
-              <button
-                onClick={() => setSearchOpen(false)}
-                className="p-1 text-stone-400 hover:text-stone-600 rounded-lg"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="max-h-72 overflow-y-auto space-y-2">
-              {filteredArticles.length > 0 ? (
-                filteredArticles.map((art) => (
-                  <div
-                    key={art.id}
-                    onClick={() => {
-                      handleSelectArticle(art);
-                      setSearchOpen(false);
-                    }}
-                    className="p-3 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer transition-colors flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="text-xs font-bold text-stone-900 dark:text-stone-100">
-                        {art.title}
-                      </div>
-                      <div className="text-[11px] text-stone-500 line-clamp-1">
-                        {art.summary}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-stone-400 shrink-0" />
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-xs text-stone-400">
-                  未找到匹配文章
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-8 mt-auto text-center text-xs text-slate-400 space-y-1.5">
+        <p className="font-semibold text-slate-600">
+          {lang === 'en'
+            ? 'Lumina Global Travel & eSIM Intelligence © 2026'
+            : '美卡精英 & Lumina 全球商旅 eSIM © 2026. All Rights Reserved.'}
+        </p>
+        <p className="max-w-xl mx-auto leading-relaxed px-4 text-[11px] text-slate-400">
+          {lang === 'en'
+            ? 'Notice: eSIM connectivity is powered by Tier-1 telecommunication roaming agreements. Credit card rewards and point valuations are for strategic estimation only and subject to issuer approval.'
+            : '声明：本站提供之全球 eSIM 服务由顶级运营商直连漫游承载；信用卡点数估值、福利细节仅供参考，不构成任何硬性申请承诺。理财需理性，畅享全球无界之旅。'}
+        </p>
+      </footer>
     </div>
   );
 }

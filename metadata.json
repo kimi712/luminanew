@@ -1,6 +1,6 @@
 {
-  "name": "Aevorynth Media",
-  "description": "Aevorynth is an independent digital magazine and tech publication exploring artificial intelligence, sustainable technology, digital craft, and future workflows.",
+  "name": "Lumina Global eSIM & Travel",
+  "description": "Next-generation global travel eSIM marketplace with multi-channel checkout (Apple Pay, Credit Cards, WeChat/Alipay, Crypto), combined with premium travel credit card rewards intelligence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
