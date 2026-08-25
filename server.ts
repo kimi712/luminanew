@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
@@ -7,10 +8,42 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// Helper to check if API key exists
+// Helper to check if Gemini API key exists
 const isGeminiApiKeyConfigured = () => {
   return !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY';
 };
+
+// In-memory order database store
+interface ServerOrder {
+  orderNumber: string;
+  destinationId: string;
+  destinationNameEn: string;
+  destinationNameZh: string;
+  packageId: string;
+  dataAmount: string;
+  validityDays: number;
+  dataAmountMB: number;
+  basePriceUSD: number;
+  discountUSD: number;
+  finalPriceUSD: number;
+  finalPriceConverted: number;
+  currency: string;
+  customerEmail: string;
+  paymentMethod: string;
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
+  createdAt: string;
+  paidAt?: string;
+  transactionId?: string;
+  esimProfile?: {
+    iccid: string;
+    activationCode: string;
+    smdpAddress: string;
+    qrPayload: string;
+    provisionedAt: string;
+  };
+}
+
+const ordersStore = new Map<string, ServerOrder>();
 
 // Initialize Gemini client lazily
 let aiClient: GoogleGenAI | null = null;
@@ -39,15 +72,301 @@ async function startServer() {
   // Body parsing middleware
   app.use(express.json());
 
-  // API Check Status
+  // ==========================================
+  // 1. SYSTEM & AI STATUS ENDPOINTS
+  // ==========================================
   app.get('/api/status', (req, res) => {
     res.json({
       status: 'ok',
       hasApiKey: isGeminiApiKeyConfigured(),
+      serverTime: new Date().toISOString(),
+      activeOrdersCount: ordersStore.size,
     });
   });
 
-  // AI Recommend Card Endpoint
+  // ==========================================
+  // 2. PAYMENT API ENDPOINTS
+  // ==========================================
+
+  // Get Payment Gateway Configuration & Supported Channels
+  app.get('/api/payment/config', (req, res) => {
+    const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
+    const alipayConfigured = !!process.env.ALIPAY_APP_ID;
+    const wechatConfigured = !!process.env.WECHAT_PAY_MCH_ID;
+
+    res.json({
+      success: true,
+      environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox',
+      gateways: {
+        stripe: {
+          enabled: true,
+          isLive: stripeConfigured,
+          publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || 'pk_test_lumina_demo_sample_key',
+        },
+        alipay: {
+          enabled: true,
+          isLive: alipayConfigured,
+        },
+        wechat: {
+          enabled: true,
+          isLive: wechatConfigured,
+        },
+        crypto: {
+          enabled: true,
+          supportedTokens: ['USDT-TRC20', 'USDC-Polygon', 'BTC'],
+        },
+        applePay: {
+          enabled: true,
+          merchantId: 'merchant.com.lumina.esim',
+        },
+        googlePay: {
+          enabled: true,
+          merchantId: '12345678901234567890',
+        },
+      },
+      availableCoupons: [
+        { code: 'LUMINA10', description: '10% OFF Storewide', percent: 10 },
+        { code: 'VOYAGE20', description: '20% OFF Summer Special', percent: 20 },
+        { code: 'FIRSTTRIP', description: '$3 OFF First Purchase', fixedUSD: 3 },
+      ],
+    });
+  });
+
+  // Validate Coupon Code
+  app.post('/api/payment/validate-coupon', (req, res) => {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ valid: false, message: 'Coupon code required' });
+    }
+
+    const clean = String(code).trim().toUpperCase();
+    if (clean === 'LUMINA10') {
+      return res.json({ valid: true, code: 'LUMINA10', percent: 10, fixedUSD: 0 });
+    } else if (clean === 'VOYAGE20') {
+      return res.json({ valid: true, code: 'VOYAGE20', percent: 20, fixedUSD: 0 });
+    } else if (clean === 'FIRSTTRIP') {
+      return res.json({ valid: true, code: 'FIRSTTRIP', percent: 0, fixedUSD: 3 });
+    } else {
+      return res.status(400).json({ valid: false, message: 'Invalid or expired coupon code' });
+    }
+  });
+
+  // Create Payment Order Intent
+  app.post('/api/payment/create-order', (req, res) => {
+    const {
+      destination,
+      selectedPackage,
+      customerEmail,
+      paymentMethod,
+      currency = 'USD',
+      couponCode,
+    } = req.body;
+
+    if (!destination || !selectedPackage || !customerEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'MISSING_FIELDS',
+        message: 'Missing required order parameters (destination, package, or email).',
+      });
+    }
+
+    // Calculate exact pricing
+    const basePriceUSD = Number(selectedPackage.priceUSD) || 10;
+    let discountUSD = 0;
+
+    if (couponCode) {
+      const codeClean = String(couponCode).trim().toUpperCase();
+      if (codeClean === 'LUMINA10') {
+        discountUSD = basePriceUSD * 0.1;
+      } else if (codeClean === 'VOYAGE20') {
+        discountUSD = basePriceUSD * 0.2;
+      } else if (codeClean === 'FIRSTTRIP') {
+        discountUSD = Math.min(3, basePriceUSD);
+      }
+    }
+
+    const finalPriceUSD = Math.max(0.5, basePriceUSD - discountUSD);
+
+    // Exchange rates
+    const rates: Record<string, number> = {
+      USD: 1.0,
+      EUR: 0.92,
+      GBP: 0.79,
+      JPY: 155.0,
+      CNY: 7.25,
+    };
+    const rate = rates[currency] || 1.0;
+    const finalPriceConverted = Number((finalPriceUSD * rate).toFixed(2));
+
+    // Unique Order Number
+    const randomHex = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const orderNumber = `LUM-${Date.now().toString().slice(-6)}-${randomHex}`;
+
+    // Generate specific payment payload based on channel
+    let paymentPayload: Record<string, any> = {};
+
+    if (paymentMethod === 'wechat') {
+      paymentPayload = {
+        qrCodeUrl: `weixin://wxpay/bizpayurl?pr=lum_${orderNumber}`,
+        qrDisplayData: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=weixin://wxpay/bizpayurl?pr=lum_${orderNumber}`,
+        expireInSeconds: 900,
+        currencySymbol: '¥',
+        payAmount: (finalPriceUSD * 7.25).toFixed(2),
+      };
+    } else if (paymentMethod === 'alipay') {
+      paymentPayload = {
+        qrCodeUrl: `https://qr.alipay.com/bax${orderNumber}`,
+        qrDisplayData: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=https://qr.alipay.com/bax${orderNumber}`,
+        cashierUrl: `https://openapi.alipay.com/gateway.do?trade_no=${orderNumber}`,
+        expireInSeconds: 900,
+        currencySymbol: '¥',
+        payAmount: (finalPriceUSD * 7.25).toFixed(2),
+      };
+    } else if (paymentMethod === 'crypto') {
+      paymentPayload = {
+        depositAddress: 'TX7b4YFq9Zk28eR1P6eJ4gB3pL9Q2h8W1y', // USDT TRC20 demo wallet
+        polygonAddress: '0x71C...498f86',
+        network: 'USDT (TRC-20)',
+        amountUSDT: finalPriceUSD.toFixed(2),
+        qrDisplayData: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=ethereum:0x71C498f86?amount=${finalPriceUSD}`,
+      };
+    } else if (paymentMethod === 'card') {
+      paymentPayload = {
+        clientSecret: `pi_lumina_${orderNumber}_secret_${crypto.randomBytes(8).toString('hex')}`,
+        cardGateway: 'Stripe Global Card Processing (PCI-DSS Level 1)',
+      };
+    }
+
+    const order: ServerOrder = {
+      orderNumber,
+      destinationId: destination.id,
+      destinationNameEn: destination.countryNameEn,
+      destinationNameZh: destination.countryNameZh,
+      packageId: selectedPackage.id,
+      dataAmount: selectedPackage.dataAmount,
+      validityDays: selectedPackage.validityDays,
+      dataAmountMB: selectedPackage.dataAmountMB,
+      basePriceUSD,
+      discountUSD,
+      finalPriceUSD,
+      finalPriceConverted,
+      currency,
+      customerEmail,
+      paymentMethod,
+      paymentStatus: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+
+    ordersStore.set(orderNumber, order);
+
+    res.json({
+      success: true,
+      orderNumber,
+      finalPriceUSD,
+      finalPriceConverted,
+      currency,
+      paymentMethod,
+      paymentPayload,
+      status: 'pending',
+    });
+  });
+
+  // Confirm Payment & Provision Telecom eSIM Profile
+  app.post('/api/payment/confirm', (req, res) => {
+    const { orderNumber, transactionDetails } = req.body;
+
+    if (!orderNumber) {
+      return res.status(400).json({ success: false, message: 'Order number required' });
+    }
+
+    const order = ordersStore.get(orderNumber);
+    if (!order) {
+      // If order was created purely on client or restart, generate a valid order structure
+      const randomIccid = `89852026${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+      const randomActivation = `LUM-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+      const smdp = `LPA:1$smdp.lumina-esim.com$${randomActivation}`;
+
+      return res.json({
+        success: true,
+        orderNumber,
+        status: 'paid',
+        transactionId: `TXN-${Date.now()}`,
+        esimProfile: {
+          iccid: randomIccid,
+          activationCode: randomActivation,
+          smdpAddress: smdp,
+          qrPayload: smdp,
+          qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(smdp)}`,
+          provisionedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    // Telecommunication SM-DP+ eSIM profile provisioning
+    const randomIccid = `89852026${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+    const randomActivation = `LUM-${order.destinationId.toUpperCase().slice(0, 3)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    const smdp = `LPA:1$smdp.lumina-esim.com$${randomActivation}`;
+
+    order.paymentStatus = 'paid';
+    order.paidAt = new Date().toISOString();
+    order.transactionId = transactionDetails?.id || `TXN-${Date.now()}`;
+    order.esimProfile = {
+      iccid: randomIccid,
+      activationCode: randomActivation,
+      smdpAddress: smdp,
+      qrPayload: smdp,
+      provisionedAt: new Date().toISOString(),
+    };
+
+    ordersStore.set(orderNumber, order);
+
+    res.json({
+      success: true,
+      orderNumber: order.orderNumber,
+      status: 'paid',
+      transactionId: order.transactionId,
+      paidAt: order.paidAt,
+      esimProfile: {
+        ...order.esimProfile,
+        qrImageUrl: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(smdp)}`,
+      },
+    });
+  });
+
+  // Query Order Status (Polling endpoint)
+  app.get('/api/payment/order/:orderNumber', (req, res) => {
+    const { orderNumber } = req.params;
+    const order = ordersStore.get(orderNumber);
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    res.json({
+      success: true,
+      order,
+    });
+  });
+
+  // Payment Webhook Handler (Stripe, WeChat, Alipay, Crypto)
+  app.post('/api/payment/webhook', (req, res) => {
+    const { event, orderNumber, transactionId } = req.body;
+    console.log(`[Webhook Received] Event: ${event} for Order: ${orderNumber}`);
+
+    if (orderNumber && ordersStore.has(orderNumber)) {
+      const order = ordersStore.get(orderNumber)!;
+      order.paymentStatus = 'paid';
+      order.paidAt = new Date().toISOString();
+      order.transactionId = transactionId || `WH-${Date.now()}`;
+      ordersStore.set(orderNumber, order);
+    }
+
+    res.json({ received: true, status: 'processed' });
+  });
+
+  // ==========================================
+  // 3. GEMINI AI RECOMMENDATION ENDPOINT
+  // ==========================================
   app.post('/api/recommend', async (req, res) => {
     const {
       lang = 'en',
