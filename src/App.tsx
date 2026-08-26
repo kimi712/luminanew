@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Header } from './components/Header';
 import { EsimStore } from './components/EsimStore';
 import { MyEsims } from './components/MyEsims';
@@ -9,10 +10,13 @@ import { CardCompare } from './components/CardCompare';
 import { RewardsCalculator } from './components/RewardsCalculator';
 import { StrategyGuide } from './components/StrategyGuide';
 import { AiConsultant } from './components/AiConsultant';
+import { FooterLegal, LegalModalType } from './components/FooterLegal';
+import { LegalModal } from './components/LegalModal';
+import { CyberHeroTelemetry } from './components/CyberHeroTelemetry';
 import { CreditCard } from './data/cards';
 import { INITIAL_PURCHASED_ESIMS, ESIM_DESTINATIONS } from './data/esimData';
 import { Language, Currency, EsimDestination, EsimPackage, PurchasedEsim } from './types';
-import { Sparkles, Globe2, ShieldCheck, Zap, Wifi } from 'lucide-react';
+import { Sparkles, Globe2, ShieldCheck, Zap, Wifi, Radio, Cpu, ArrowUpRight } from 'lucide-react';
 
 export default function App() {
   // Primary language default to English
@@ -21,6 +25,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('esim-store');
   const [compareList, setCompareList] = useState<CreditCard[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Legal Modal State (about, contact, terms, privacy, refund)
+  const [activeLegalModal, setActiveLegalModal] = useState<LegalModalType>(null);
 
   // eSIM state
   const [purchasedEsims, setPurchasedEsims] = useState<PurchasedEsim[]>(() => {
@@ -98,7 +105,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-950 flex flex-col antialiased relative overflow-x-hidden">
+      {/* Dynamic Cyber Gradient Glow Orbs in Background */}
+      <div className="fixed top-0 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none -z-10 animate-pulse" />
+      <div className="fixed bottom-10 right-1/4 w-96 h-96 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none -z-10" />
+
       {/* Navigation Header */}
       <Header
         activeTab={activeTab}
@@ -112,89 +123,54 @@ export default function App() {
         setLang={setLang}
         currency={currency}
         setCurrency={setCurrency}
+        onOpenLegalModal={(type) => setActiveLegalModal(type)}
       />
 
       {/* Main Content Stage */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
         {/* Banner/Alert messages */}
-        {errorMessage && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-semibold px-4 py-3 rounded-2xl shadow-sm text-center animate-bounce">
-            {errorMessage}
-          </div>
-        )}
+        <AnimatePresence>
+          {errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-red-950/90 border border-red-500/50 text-red-200 text-xs font-semibold px-4 py-3 rounded-2xl shadow-lg text-center"
+            >
+              {errorMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Global eSIM Hero Banner when on eSIM store */}
+        {/* Global eSIM Futuristic Cyber Hero with Live Telecom NOC Telemetry */}
         {activeTab === 'esim-store' && (
-          <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 text-white p-6 sm:p-10 border border-slate-800 shadow-2xl">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,#2563eb,transparent_35%)] opacity-35 animate-mesh" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_75%,#06b6d4,transparent_40%)] opacity-25 animate-mesh" />
-            <div className="absolute -right-12 -bottom-12 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="relative z-10 max-w-3xl space-y-4">
-              <span className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-blue-500/20 text-xs font-bold font-display tracking-wide text-blue-300 border border-blue-400/20">
-                <Wifi className="h-3.5 w-3.5 text-cyan-400" />
-                <span>
-                  {lang === 'en'
-                    ? 'Instant Global Connectivity • 200+ Countries 5G eSIM'
-                    : '全球即时连接 • 200+ 国家与地区高速 5G eSIM'}
-                </span>
-              </span>
-
-              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight font-display leading-tight text-white">
-                {lang === 'en' ? (
-                  <>
-                    Borderless High-Speed Travel eSIMs <br className="hidden sm:inline" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-300">
-                      With Multi-Channel Instant Checkout
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    无缝高速出境跨境 eSIM <br className="hidden sm:inline" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-300 to-indigo-300">
-                      支持 Apple Pay、国际信用卡、微信支付宝与加密支付
-                    </span>
-                  </>
-                )}
-              </h1>
-
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-                {lang === 'en'
-                  ? 'Connect immediately upon arrival in 200+ countries with Tier-1 5G/4G local networks. Zero physical SIM swaps, no exorbitant roaming fees, and automated QR provisioning within 60 seconds.'
-                  : '落地即连，畅享全球顶尖运营商原生 5G/4G 极速漫游。无需插拔实体卡，无高额漫游费账单，60秒内自动完成即时发卡与扫码激活。'}
-              </p>
-
-              {/* Fast feature metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10 text-xs">
-                <div className="flex items-center space-x-2 text-slate-200">
-                  <Globe2 className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                  <span>{lang === 'en' ? '200+ Countries' : '覆盖 200+ 国家'}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-slate-200">
-                  <Zap className="h-4 w-4 text-amber-400 flex-shrink-0" />
-                  <span>{lang === 'en' ? 'Instant QR Code' : '60秒即时交付'}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-slate-200">
-                  <ShieldCheck className="h-4 w-4 text-emerald-400 flex-shrink-0" />
-                  <span>{lang === 'en' ? 'Tier-1 Networks' : '原生高速网络'}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-slate-200">
-                  <Sparkles className="h-4 w-4 text-purple-400 flex-shrink-0" />
-                  <span>{lang === 'en' ? 'Multi-Payment' : '多渠道便捷付'}</span>
-                </div>
-              </div>
-            </div>
-          </section>
+          <CyberHeroTelemetry
+            lang={lang}
+            onExploreClick={() => {
+              const el = document.getElementById('store-packages-section');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                window.scrollBy({ top: 450, behavior: 'smooth' });
+              }
+            }}
+            onOpenCompatibility={() => setShowCompatibility(true)}
+          />
         )}
 
         {/* Credit Card Hero Banner when on Library */}
         {activeTab === 'library' && (
-          <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-6 sm:p-10 border border-blue-950 shadow-xl">
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white p-6 sm:p-10 border border-slate-800 shadow-2xl"
+          >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,#2563eb,transparent_40%)] opacity-30 animate-mesh" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_80%,#06b6d4,transparent_45%)] opacity-20 animate-mesh" />
 
             <div className="relative z-10 max-w-2xl space-y-4">
-              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-xs font-bold font-display tracking-wide text-blue-200">
+              <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-xs font-bold font-mono tracking-wide text-cyan-300 border border-cyan-400/30">
                 <Sparkles className="h-3.5 w-3.5 text-amber-300" />
                 <span>
                   {lang === 'en'
@@ -205,70 +181,79 @@ export default function App() {
               <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight font-display leading-tight">
                 {lang === 'en' ? 'Maximize Travel Points & Free Flights' : '最大化您的刷卡回血，开启奢华商旅'}
               </h2>
-              <p className="text-xs sm:text-sm text-blue-100 leading-relaxed max-w-lg">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg">
                 {lang === 'en'
                   ? 'Master Chase 5/24 rules, unlock premium airline & hotel transfer partners (Hyatt, ANA, Air France), and calculate real net returns with our automated analytics.'
                   : '深入了解 Chase 5/24 限制，精确测算哪张信用卡在您的日常开销中最省钱，配合 Gemini AI 大师亲自为您号脉推荐最佳开卡序列。'}
               </p>
             </div>
-          </section>
+          </motion.section>
         )}
 
-        {/* Tab Router Render */}
-        <div className="transition-all duration-300">
-          {activeTab === 'esim-store' && (
-            <EsimStore
-              lang={lang}
-              currency={currency}
-              onSelectPlan={handleSelectPlan}
-              onOpenCompatibility={() => setShowCompatibility(true)}
-            />
-          )}
+        {/* Tab Router Render with Smooth Animated Fade */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.3 }}
+            id="store-packages-section"
+          >
+            {activeTab === 'esim-store' && (
+              <EsimStore
+                lang={lang}
+                currency={currency}
+                onSelectPlan={handleSelectPlan}
+                onOpenCompatibility={() => setShowCompatibility(true)}
+              />
+            )}
 
-          {activeTab === 'my-esims' && (
-            <MyEsims
-              esims={purchasedEsims}
-              lang={lang}
-              onGoToStore={() => {
-                setActiveTab('esim-store');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onTopUp={handleTopUp}
-            />
-          )}
+            {activeTab === 'my-esims' && (
+              <MyEsims
+                esims={purchasedEsims}
+                lang={lang}
+                onGoToStore={() => {
+                  setActiveTab('esim-store');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onTopUp={handleTopUp}
+              />
+            )}
 
-          {activeTab === 'library' && (
-            <CardList
-              lang={lang}
-              compareList={compareList}
-              onToggleCompare={handleToggleCompare}
-              onClearCompare={handleClearCompare}
-              onGoToCompare={() => {
-                setActiveTab('compare');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          )}
+            {activeTab === 'library' && (
+              <CardList
+                lang={lang}
+                compareList={compareList}
+                onToggleCompare={handleToggleCompare}
+                onClearCompare={handleClearCompare}
+                onGoToCompare={() => {
+                  setActiveTab('compare');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            )}
 
-          {activeTab === 'compare' && (
-            <CardCompare
-              lang={lang}
-              compareList={compareList}
-              onRemoveCard={handleRemoveCompare}
-              onClearAll={handleClearCompare}
-              onGoToLibrary={() => {
-                setActiveTab('library');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          )}
+            {activeTab === 'compare' && (
+              <CardCompare
+                lang={lang}
+                compareList={compareList}
+                onRemoveCard={handleRemoveCompare}
+                onClearAll={handleClearCompare}
+                onGoToLibrary={() => {
+                  setActiveTab('library');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            )}
 
-          {activeTab === 'calculator' && <RewardsCalculator lang={lang} />}
+            {activeTab === 'calculator' && <RewardsCalculator lang={lang} />}
 
-          {activeTab === 'strategy' && <StrategyGuide lang={lang} />}
+            {activeTab === 'strategy' && <StrategyGuide lang={lang} />}
 
-          {activeTab === 'ai-consultant' && <AiConsultant lang={lang} />}
-        </div>
+            {activeTab === 'ai-consultant' && <AiConsultant lang={lang} />}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Checkout Modal */}
@@ -289,19 +274,23 @@ export default function App() {
         lang={lang}
       />
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-8 mt-auto text-center text-xs text-slate-400 space-y-1.5">
-        <p className="font-semibold text-slate-600">
-          {lang === 'en'
-            ? 'Lumina Global Travel & eSIM Intelligence © 2026'
-            : '美卡精英 & Lumina 全球商旅 eSIM © 2026. All Rights Reserved.'}
-        </p>
-        <p className="max-w-xl mx-auto leading-relaxed px-4 text-[11px] text-slate-400">
-          {lang === 'en'
-            ? 'Notice: eSIM connectivity is powered by Tier-1 telecommunication roaming agreements. Credit card rewards and point valuations are for strategic estimation only and subject to issuer approval.'
-            : '声明：本站提供之全球 eSIM 服务由顶级运营商直连漫游承载；信用卡点数估值、福利细节仅供参考，不构成任何硬性申请承诺。理财需理性，畅享全球无界之旅。'}
-        </p>
-      </footer>
+      {/* Comprehensive Legal, About, Contact Modals */}
+      <LegalModal
+        type={activeLegalModal}
+        isOpen={!!activeLegalModal}
+        onClose={() => setActiveLegalModal(null)}
+        lang={lang}
+      />
+
+      {/* Futuristic Black Luxury Global Footer */}
+      <FooterLegal
+        lang={lang}
+        onOpenModal={(type) => setActiveLegalModal(type)}
+        onSelectCategory={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
     </div>
   );
 }
