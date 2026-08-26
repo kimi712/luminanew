@@ -130,10 +130,14 @@ export const EsimCheckoutModal: React.FC<EsimCheckoutModalProps> = ({
       }
     } catch (e) {
       // Fallback local check
-      if (clean === 'LUMINA10') {
+      if (clean === 'CAYLET20' || clean === 'AIDEN20') {
+        setAppliedDiscount({ code: clean, percent: 20, fixedUSD: 0 });
+      } else if (clean === 'LUMINA10') {
         setAppliedDiscount({ code: 'LUMINA10', percent: 10, fixedUSD: 0 });
       } else if (clean === 'VOYAGE20') {
         setAppliedDiscount({ code: 'VOYAGE20', percent: 20, fixedUSD: 0 });
+      } else if (clean === 'FIRSTTRIP') {
+        setAppliedDiscount({ code: 'FIRSTTRIP', percent: 0, fixedUSD: 3 });
       } else {
         setCouponError(lang === 'en' ? 'Invalid coupon code' : '优惠码无效');
       }
@@ -759,6 +763,28 @@ export const EsimCheckoutModal: React.FC<EsimCheckoutModalProps> = ({
                   {couponLoading && <Loader2 className="h-3 w-3 animate-spin" />}
                   <span>{lang === 'en' ? 'Apply' : '兑换'}</span>
                 </button>
+              </div>
+
+              {/* Quick Coupon Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-400 font-medium">{lang === 'en' ? 'Available:' : '快捷可用：'}</span>
+                {['CAYLET20', 'AIDEN20', 'LUMINA10'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setCouponCode(c);
+                      if (c === 'CAYLET20' || c === 'AIDEN20') {
+                        setAppliedDiscount({ code: c, percent: 20, fixedUSD: 0 });
+                      } else if (c === 'LUMINA10') {
+                        setAppliedDiscount({ code: c, percent: 10, fixedUSD: 0 });
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-[10px] font-mono font-bold transition-all cursor-pointer"
+                  >
+                    {c} (-20%)
+                  </button>
+                ))}
               </div>
               {appliedDiscount && (
                 <p className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">

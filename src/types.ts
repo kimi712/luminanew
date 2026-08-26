@@ -1,6 +1,6 @@
 export type Language = 'en' | 'zh';
 
-export type Currency = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CNY';
+export type Currency = 'USD' | 'EUR' | 'GBP' | 'JPY' | 'CNY' | 'HKD';
 
 export interface CurrencyRate {
   code: Currency;
@@ -15,24 +15,54 @@ export const CURRENCIES: Record<Currency, CurrencyRate> = {
   GBP: { code: 'GBP', symbol: '£', rate: 0.79, label: 'GBP (£)' },
   JPY: { code: 'JPY', symbol: '¥', rate: 155.0, label: 'JPY (¥)' },
   CNY: { code: 'CNY', symbol: '¥', rate: 7.25, label: 'CNY (¥)' },
+  HKD: { code: 'HKD', symbol: 'HK$', rate: 7.82, label: 'HKD (HK$)' },
 };
 
-export type EsimRegion = 'all' | 'popular' | 'asia' | 'europe' | 'north-america' | 'global' | 'oceania' | 'latam';
+export type EsimRegion =
+  | 'all'
+  | 'popular'
+  | 'us-special'
+  | 'asia'
+  | 'europe'
+  | 'north-america'
+  | 'global'
+  | 'oceania'
+  | 'latam';
+
+export type PlanCategory = 'all' | 'daily' | 'total' | 'unlimited' | 'long_term';
 
 export interface EsimPackage {
   id: string;
-  dataAmount: string; // e.g. "1 GB", "3 GB", "5 GB", "10 GB", "20 GB", "Unlimited"
+  dataAmount: string; // e.g. "1 GB/Day", "10 GB", "Unlimited", "30 GB (365 Days)"
   dataAmountMB: number; // for tracking
   validityDays: number;
   priceUSD: number;
   originalPriceUSD?: number;
   isPopular?: boolean;
-  type: 'fixed' | 'daily_unlimited';
+  isBestValue?: boolean;
+  type: 'fixed' | 'daily_unlimited' | 'long_term' | 'unlimited';
+  category: 'daily' | 'total' | 'unlimited' | 'long_term';
   descriptionEn: string;
   descriptionZh: string;
+  hasCleanIp?: boolean;
+  supportsSms?: boolean;
+  features?: string[];
 }
 
 export type EsimPlan = EsimPackage;
+
+export interface BankCompatibilityStatus {
+  chase: boolean;
+  amex: boolean;
+  capitalOne: boolean;
+  citi: boolean;
+  usBank: boolean;
+  paypalUs: boolean;
+  wise: boolean;
+  applePay: boolean;
+  notesEn?: string;
+  notesZh?: string;
+}
 
 export interface EsimDestination {
   id: string;
@@ -45,6 +75,10 @@ export interface EsimDestination {
   speeds: ('5G' | '4G LTE')[];
   hotspot: boolean;
   ekycRequired: boolean;
+  isCleanNativeIp: boolean; // Caylet signature feature: Pure clean residential/roaming IP
+  isUsCardPlayerRecommended?: boolean;
+  bankCompatibility?: BankCompatibilityStatus;
+  apnSetting: string;
   coverageDetailsEn: string;
   coverageDetailsZh: string;
   coverageCountriesCount: number;
@@ -53,7 +87,14 @@ export interface EsimDestination {
   isRegional?: boolean;
 }
 
-export type PaymentChannel = 'card' | 'applepay' | 'googlepay' | 'alipay' | 'wechat' | 'paypal' | 'crypto';
+export type PaymentChannel =
+  | 'card'
+  | 'applepay'
+  | 'googlepay'
+  | 'alipay'
+  | 'wechat'
+  | 'paypal'
+  | 'crypto';
 
 export interface PurchasedEsim {
   id: string;
@@ -77,9 +118,12 @@ export interface PurchasedEsim {
   activationCode: string;
   qrPayload: string;
   customerEmail: string;
+  isCleanIp?: boolean;
+  apn?: string;
 }
 
 export interface CompatibilityDevice {
   brand: string;
   models: string[];
 }
+

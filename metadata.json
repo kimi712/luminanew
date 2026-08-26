@@ -1,6 +1,6 @@
 {
   "name": "Lumina Global eSIM & Travel",
-  "description": "Next-generation global travel eSIM marketplace with multi-channel checkout (Apple Pay, Credit Cards, WeChat/Alipay, Crypto), combined with premium travel credit card rewards intelligence.",
+  "description": "Global travel eSIM marketplace featuring clean native IP solutions tailored for US credit card players and global travelers, with instant multi-channel checkout (Apple Pay, Stripe Cards, WeChat Pay, Alipay, Crypto), APN setup, and financial intelligence.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

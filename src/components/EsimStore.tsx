@@ -1,6 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { ESIM_DESTINATIONS } from '../data/esimData';
-import { EsimDestination, EsimPackage, EsimRegion, Currency, CURRENCIES, Language } from '../types';
+import {
+  EsimDestination,
+  EsimPackage,
+  EsimRegion,
+  PlanCategory,
+  Currency,
+  CURRENCIES,
+  Language,
+} from '../types';
 import {
   Search,
   Globe2,
@@ -17,7 +25,16 @@ import {
   Layers,
   PlaneTakeoff,
   Sliders,
-  Check
+  Check,
+  Copy,
+  CreditCard,
+  Lock,
+  Radio,
+  Tag,
+  BookOpen,
+  HelpCircle,
+  Award,
+  Fingerprint,
 } from 'lucide-react';
 
 interface EsimStoreProps {
@@ -35,10 +52,14 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeRegion, setActiveRegion] = useState<EsimRegion>('all');
+  const [planCategory, setPlanCategory] = useState<PlanCategory>('all');
   const [selectedDestination, setSelectedDestination] = useState<EsimDestination | null>(
     ESIM_DESTINATIONS[0]
   );
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showBankMatrix, setShowBankMatrix] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [copiedApn, setCopiedApn] = useState(false);
 
   // Data Usage Calculator States
   const [calcDays, setCalcDays] = useState(7);
@@ -50,18 +71,33 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
 
   const regionTabs = [
     { id: 'all', labelEn: 'All Destinations', labelZh: '全部目的地', icon: Globe2 },
+    { id: 'us-special', labelEn: 'US Cardholder / Clean IP', labelZh: '美卡专属 / 纯净原生IP', icon: ShieldCheck },
     { id: 'popular', labelEn: 'Top Popular', labelZh: '热门精选', icon: Flame },
-    { id: 'asia', labelEn: 'Asia', labelZh: '亚洲', icon: Sparkles },
-    { id: 'europe', labelEn: 'Europe', labelZh: '欧洲', icon: Layers },
-    { id: 'north-america', labelEn: 'North America', labelZh: '北美', icon: Zap },
+    { id: 'asia', labelEn: 'Asia Pacific', labelZh: '亚太地区', icon: Sparkles },
+    { id: 'europe', labelEn: 'Europe (42 Countries)', labelZh: '欧洲全境', icon: Layers },
+    { id: 'north-america', labelEn: 'North America', labelZh: '北美全境', icon: Zap },
     { id: 'global', labelEn: 'Global Pass (140+)', labelZh: '全球通用 (140+国)', icon: Globe2 },
+  ];
+
+  const categoryTabs = [
+    { id: 'all', labelEn: 'All Packages', labelZh: '全部套餐' },
+    { id: 'daily', labelEn: 'Daily Reset (1~2GB/Day)', labelZh: '每日重置高速' },
+    { id: 'total', labelEn: 'Total Quota (Flexible)', labelZh: '总量长效包' },
+    { id: 'long_term', labelEn: '365D Keeper / Card Maintenance', labelZh: '365天保号养卡' },
+    { id: 'unlimited', labelEn: 'Truly Unlimited 5G', labelZh: '全速不限量' },
   ];
 
   const filteredDestinations = useMemo(() => {
     return ESIM_DESTINATIONS.filter((item) => {
       // Region filter
       if (activeRegion === 'popular' && !item.isPopular) return false;
-      if (activeRegion !== 'all' && activeRegion !== 'popular' && item.region !== activeRegion) {
+      if (activeRegion === 'us-special' && !item.isUsCardPlayerRecommended) return false;
+      if (
+        activeRegion !== 'all' &&
+        activeRegion !== 'popular' &&
+        activeRegion !== 'us-special' &&
+        item.region !== activeRegion
+      ) {
         return false;
       }
       // Search filter
@@ -77,29 +113,153 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
     });
   }, [activeRegion, searchQuery]);
 
+  // Packages filtered by plan category
+  const activePackages = useMemo(() => {
+    if (!selectedDestination) return [];
+    if (planCategory === 'all') return selectedDestination.packages;
+    return selectedDestination.packages.filter((p) => p.category === planCategory);
+  }, [selectedDestination, planCategory]);
+
   // Calculate estimated GB
   const estimatedGB = useMemo(() => {
-    // Maps ~ 60MB/hr, Social ~ 150MB/hr, Video ~ 500MB/hr (8.3MB/min)
     const dailyMB = calcMapsHours * 60 + calcSocialHours * 150 + calcVideoMins * 8.3;
     const totalMB = dailyMB * calcDays;
     return (totalMB / 1024).toFixed(1);
   }, [calcDays, calcMapsHours, calcSocialHours, calcVideoMins]);
 
+  const handleCopyApn = (apn: string) => {
+    navigator.clipboard.writeText(apn);
+    setCopiedApn(true);
+    setTimeout(() => setCopiedApn(false), 2000);
+  };
+
   return (
     <div className="space-y-8">
+      {/* Caylet Signature Highlighting Banner: Clean Native IP for US Card Players */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-indigo-900/60 relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-96 h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent pointer-events-none" />
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold font-mono uppercase tracking-wider flex items-center gap-1.5">
+                <Fingerprint className="h-3.5 w-3.5 text-cyan-400" />
+                {lang === 'en' ? 'Clean Native IP Architecture' : '纯净原生住宅 IP • 美卡专属网络'}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
+                {lang === 'en' ? 'Zero Bank Fraud Risk' : '银行网银 100% 零风控拦截'}
+              </span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-extrabold font-display leading-snug">
+              {lang === 'en'
+                ? 'Tailored for US Credit Card Players & Global Travelers'
+                : '专为美卡玩家、跨境出海与数字游民定制的高速纯净 eSIM'}
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {lang === 'en'
+                ? 'Direct telecom ISP routing without dirty datacenter VPN flags. Safely log into Chase, Amex, Capital One, Citi, PayPal US & Wise with zero fraud triggers or KYC hassle.'
+                : '直连当地一级电信 ISP 原生路由，杜绝机房脏 IP。无需实名认证，完美支持 Chase / Amex / Capital One / Citi / 汇丰网银安全登陆与在线申卡，零风控拦截。'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2.5 items-center">
+            <button
+              onClick={() => setShowBankMatrix(!showBankMatrix)}
+              className="px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <span>{lang === 'en' ? 'Bank Risk Matrix' : '查看银行风控测试表'}</span>
+            </button>
+            <button
+              onClick={() => setShowSetupGuide(!showSetupGuide)}
+              className="px-4 py-2.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white transition-all shadow-md shadow-blue-500/30 flex items-center gap-1.5 cursor-pointer"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span>{lang === 'en' ? 'APN & Setup Guide' : 'APN 与一键安装教程'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Bank Compatibility Accordion */}
+        {showBankMatrix && (
+          <div className="mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 animate-fadeIn">
+            {[
+              { name: 'Chase Bank', status: '100% Pass', icon: '🏛️' },
+              { name: 'American Express', status: '100% Pass', icon: '💳' },
+              { name: 'Capital One', status: '100% Pass', icon: '🏦' },
+              { name: 'Citibank US', status: '100% Pass', icon: '💎' },
+              { name: 'US Bank / Wells', status: '100% Pass', icon: '🦅' },
+              { name: 'PayPal US', status: '100% Pass', icon: '🅿️' },
+              { name: 'Wise / Revolut', status: '100% Pass', icon: '🌐' },
+              { name: 'Apple Pay / ID', status: '100% Pass', icon: '🍎' },
+            ].map((bank, i) => (
+              <div key={i} className="bg-white/10 p-2.5 rounded-xl border border-white/10 text-center space-y-0.5">
+                <div className="text-base">{bank.icon}</div>
+                <div className="text-[11px] font-bold text-white truncate">{bank.name}</div>
+                <div className="text-[10px] text-emerald-400 font-mono font-bold">{bank.status}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* APN & Setup Guide Accordion */}
+        {showSetupGuide && (
+          <div className="mt-6 pt-5 border-t border-white/10 space-y-4 animate-fadeIn">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-200">
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">1</span>
+                  {lang === 'en' ? 'Scan LPA QR Code' : '扫码一键添加'}
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  {lang === 'en'
+                    ? 'Go to Settings > Cellular > Add eSIM, scan your delivery QR code.'
+                    : '进入手机「设置」>「蜂窝网络 / 移动网络」> 点击「添加 eSIM」扫描交付二维码。'}
+                </p>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">2</span>
+                  {lang === 'en' ? 'Enable Data Roaming' : '开启数据漫游'}
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  {lang === 'en'
+                    ? 'Upon landing at your destination, toggle on "Data Roaming" in cellular settings.'
+                    : '落地目的地后，开启该 eSIM 的「数据漫游」开关，手机将自动接入最强 5G 信号。'}
+                </p>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-2xl border border-white/10 space-y-1.5">
+                <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">3</span>
+                  {lang === 'en' ? 'APN Auto Config' : 'APN 自动配置'}
+                </div>
+                <p className="text-[11px] text-slate-300">
+                  {lang === 'en'
+                    ? 'APN is pushed automatically. For manual config, enter "fast.t-mobile.com" or "globaldata".'
+                    : 'APN 会自动下发适配。如遇特殊机型，手动填写 APN 接入点为 "fast.t-mobile.com" 或 "globaldata"。'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Top Banner & Quick Tools Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Feature 1: Instant Activation */}
+        {/* Feature 1: Instant Delivery & Zero KYC */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center space-x-4">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
             <Zap className="h-6 w-6" />
           </div>
           <div>
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider font-mono">
-              {lang === 'en' ? 'Instant Delivery' : '即时扫码交付'}
+              {lang === 'en' ? 'Instant 5s Delivery • 0 KYC' : '5秒出码 • 免实名认证'}
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              {lang === 'en' ? 'Receive QR code in 5 seconds via email' : '付款后 5 秒极速出码，邮件同步直发'}
+              {lang === 'en'
+                ? 'Zero personal info needed. SM-DP+ issued automatically'
+                : '无需上传护照或实名，付款后自动分配全球 5G ICCID'}
             </p>
           </div>
         </div>
@@ -118,7 +278,7 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                 {lang === 'en' ? 'Device Checker' : '机型兼容性检测'}
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
-                {lang === 'en' ? 'Check iPhone, Galaxy & Pixel compatibility' : '自查 iPhone, 三星, 谷歌 Pixel 支持'}
+                {lang === 'en' ? 'Check iPhone, Galaxy, Pixel & iPad support' : '自查 iPhone, 三星, 谷歌 Pixel 支持'}
               </p>
             </div>
           </div>
@@ -148,7 +308,7 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                   showCalculator ? 'text-white' : 'text-slate-900'
                 }`}
               >
-                {lang === 'en' ? 'Data Calculator' : '流量测算计算器'}
+                {lang === 'en' ? 'Trip Data Calculator' : '旅行流量精准测算'}
               </h4>
               <p className={`text-xs mt-0.5 ${showCalculator ? 'text-blue-100' : 'text-slate-500'}`}>
                 {lang === 'en' ? 'Estimate how many GBs you need' : '根据出行天数和使用习惯估算所需流量'}
@@ -283,8 +443,8 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
                 lang === 'en'
-                  ? 'Search country, region or telecom (e.g. Japan, Europe, SoftBank, AT&T)...'
-                  : '搜索国家、地区或运营商（如 日本, 欧洲35国, SoftBank, AT&T）...'
+                  ? 'Search country, region or telecom (e.g. USA Native IP, Japan, Europe, T-Mobile, Docomo)...'
+                  : '搜索目的地、运营商或网络类型（如 美国纯净IP, 日本, 欧洲42国, T-Mobile, Docomo）...'
               }
               className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm"
             />
@@ -316,7 +476,6 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
 
       {/* Destination Grid & Plans View */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
         {/* Left Column: Destinations Grid (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
           <div className="flex justify-between items-center">
@@ -326,7 +485,7 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                 : `可选目的地 (${filteredDestinations.length})`}
             </h3>
             <span className="text-xs text-blue-600 font-medium">
-              {lang === 'en' ? 'Click card to view data packages' : '点击目的地展开查看套餐'}
+              {lang === 'en' ? 'Click card to view plan options' : '点击目的地展开查看具体套餐'}
             </span>
           </div>
 
@@ -346,12 +505,17 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                       : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
                   }`}
                 >
-                  {/* Popular ribbon */}
-                  {dest.isPopular && (
+                  {/* Native IP Badge or Popular ribbon */}
+                  {dest.isUsCardPlayerRecommended ? (
+                    <span className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-bl-lg font-mono flex items-center gap-1">
+                      <ShieldCheck className="h-2.5 w-2.5" />
+                      CLEAN IP
+                    </span>
+                  ) : dest.isPopular ? (
                     <span className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-bl-lg font-mono">
                       POPULAR
                     </span>
-                  )}
+                  ) : null}
 
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-3">
@@ -364,13 +528,16 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {dest.speeds.map((s) => (
-                            <span key={s} className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-700 font-bold rounded font-mono">
+                            <span
+                              key={s}
+                              className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-700 font-bold rounded font-mono"
+                            >
                               {s}
                             </span>
                           ))}
-                          {dest.isRegional && (
-                            <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 text-slate-600 font-medium rounded">
-                              {dest.coverageCountriesCount} {lang === 'en' ? 'Countries' : '国通用'}
+                          {dest.isCleanNativeIp && (
+                            <span className="text-[10px] px-1.5 py-0.2 bg-emerald-100 text-emerald-700 font-bold rounded font-mono">
+                              0 KYC
                             </span>
                           )}
                         </div>
@@ -379,7 +546,7 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                    <span className="text-slate-400 font-mono text-[11px] truncate max-w-[130px]">
+                    <span className="text-slate-400 font-mono text-[11px] truncate max-w-[140px]">
                       {dest.networkPartners[0]}
                     </span>
                     <div className="text-right">
@@ -400,7 +567,6 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
         <div className="lg:col-span-5">
           {selectedDestination ? (
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm sticky top-24 space-y-6">
-              
               {/* Country Header */}
               <div className="flex items-start justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center space-x-3">
@@ -411,104 +577,174 @@ export const EsimStore: React.FC<EsimStoreProps> = ({
                     </h3>
                     <p className="text-xs text-slate-400">
                       {selectedDestination.coverageCountriesCount > 1
-                        ? (lang === 'en' ? `Multi-Country Roaming Pass (${selectedDestination.coverageCountriesCount} destinations)` : `多国漫游通行证（含 ${selectedDestination.coverageCountriesCount} 个国家）`)
-                        : (lang === 'en' ? 'Single Country 5G eSIM' : '单国原生 5G 高速 eSIM')}
+                        ? lang === 'en'
+                          ? `Multi-Country Roaming Pass (${selectedDestination.coverageCountriesCount} destinations)`
+                          : `多国漫游通行证（含 ${selectedDestination.coverageCountriesCount} 个国家）`
+                        : lang === 'en'
+                        ? 'Single Destination 5G eSIM'
+                        : '单国原生 5G 高速 eSIM'}
                     </p>
                   </div>
                 </div>
               </div>
 
               {/* Carrier & Feature Badges */}
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2 text-xs">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2.5 text-xs">
                 <div className="flex items-center space-x-2 text-slate-700">
                   <Wifi className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                  <span className="font-semibold">{lang === 'en' ? 'Carrier Networks:' : '合作运营商：'}</span>
-                  <span className="font-mono text-slate-500 truncate">{selectedDestination.networkPartners.join(' • ')}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-slate-700">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                  <span className="font-semibold">{lang === 'en' ? 'Identity Verification (eKYC):' : '实名认证要求：'}</span>
-                  <span className="text-emerald-600 font-bold">
-                    {selectedDestination.ekycRequired
-                      ? (lang === 'en' ? 'Required' : '需要')
-                      : (lang === 'en' ? 'Not Required (Instant)' : '免实名认证 (即插即用)')}
+                  <span className="font-semibold">{lang === 'en' ? 'Carriers:' : '合作运营商：'}</span>
+                  <span className="font-mono text-slate-500 truncate">
+                    {selectedDestination.networkPartners.join(' • ')}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 leading-relaxed">
+
+                <div className="flex items-center justify-between text-slate-700">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                    <span className="font-semibold">{lang === 'en' ? 'eKYC Requirement:' : '实名认证要求：'}</span>
+                    <span className="text-emerald-600 font-bold">
+                      {lang === 'en' ? '0 KYC (Instant Provision)' : '免实名认证 (即插即用)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* APN display */}
+                <div className="flex items-center justify-between text-slate-700 pt-1 border-t border-slate-200/60">
+                  <div className="flex items-center space-x-2">
+                    <Radio className="h-4 w-4 text-indigo-600 flex-shrink-0" />
+                    <span className="font-semibold">APN:</span>
+                    <span className="font-mono text-slate-600 text-[11px]">{selectedDestination.apnSetting}</span>
+                  </div>
+                  <button
+                    onClick={() => handleCopyApn(selectedDestination.apnSetting)}
+                    className="text-blue-600 hover:text-blue-700 font-mono text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedApn ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedApn ? (lang === 'en' ? 'Copied' : '已复制') : (lang === 'en' ? 'Copy' : '复制')}</span>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-slate-500 pt-1 leading-relaxed">
                   {lang === 'en' ? selectedDestination.coverageDetailsEn : selectedDestination.coverageDetailsZh}
                 </p>
               </div>
 
+              {/* Package Category Filter Tabs */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider font-mono">
+                  {lang === 'en' ? 'Plan Categories' : '套餐分类'}
+                </label>
+                <div className="flex overflow-x-auto gap-1.5 pb-1 scrollbar-none">
+                  {categoryTabs.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setPlanCategory(cat.id as PlanCategory)}
+                      className={`px-3 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                        planCategory === cat.id
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {lang === 'en' ? cat.labelEn : cat.labelZh}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Available Packages List */}
               <div className="space-y-2.5">
-                <label className="block text-xs font-bold text-slate-900 uppercase tracking-wider font-mono">
-                  {lang === 'en' ? 'Select Data Package' : '选择流量套餐'}
-                </label>
+                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                  {activePackages.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                      {lang === 'en' ? 'No packages found under this category' : '当前分类下暂无套餐，请切换分类查看'}
+                    </div>
+                  ) : (
+                    activePackages.map((pkg) => {
+                      const convertedPrice = (pkg.priceUSD * currInfo.rate).toFixed(2);
+                      const originalConverted = pkg.originalPriceUSD
+                        ? (pkg.originalPriceUSD * currInfo.rate).toFixed(2)
+                        : null;
+                      const dailyRate = (pkg.priceUSD / pkg.validityDays * currInfo.rate).toFixed(2);
 
-                <div className="space-y-2">
-                  {selectedDestination.packages.map((pkg) => {
-                    const convertedPrice = (pkg.priceUSD * currInfo.rate).toFixed(2);
-                    const originalConverted = pkg.originalPriceUSD ? (pkg.originalPriceUSD * currInfo.rate).toFixed(2) : null;
-
-                    return (
-                      <div
-                        key={pkg.id}
-                        className="p-4 rounded-2xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/30 transition-all flex items-center justify-between group"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-extrabold text-slate-900 font-mono">
-                              {pkg.dataAmount}
-                            </span>
-                            <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium">
-                              {pkg.validityDays} {lang === 'en' ? 'Days' : '天'}
-                            </span>
-                            {pkg.isPopular && (
-                              <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 font-bold rounded">
-                                BEST VALUE
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 max-w-[220px] leading-tight">
-                            {lang === 'en' ? pkg.descriptionEn : pkg.descriptionZh}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center space-x-3">
-                          <div className="text-right">
-                            <div className="text-base font-extrabold text-blue-600 font-mono">
-                              {currInfo.symbol}
-                              {convertedPrice}
-                            </div>
-                            {originalConverted && (
-                              <div className="text-[10px] text-slate-400 line-through font-mono">
-                                {currInfo.symbol}
-                                {originalConverted}
+                      return (
+                        <div
+                          key={pkg.id}
+                          className="p-4 rounded-2xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/30 transition-all space-y-2.5 group"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-sm font-extrabold text-slate-900 font-mono">
+                                  {pkg.dataAmount}
+                                </span>
+                                <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-medium">
+                                  {pkg.validityDays} {lang === 'en' ? 'Days' : '天'}
+                                </span>
+                                {pkg.isBestValue && (
+                                  <span className="text-[10px] px-1.5 py-0.2 bg-indigo-100 text-indigo-800 font-bold rounded">
+                                    BEST VALUE
+                                  </span>
+                                )}
+                                {pkg.isPopular && (
+                                  <span className="text-[10px] px-1.5 py-0.2 bg-amber-100 text-amber-800 font-bold rounded">
+                                    POPULAR
+                                  </span>
+                                )}
                               </div>
-                            )}
+                              <p className="text-[11px] text-slate-500 leading-tight">
+                                {lang === 'en' ? pkg.descriptionEn : pkg.descriptionZh}
+                              </p>
+                            </div>
+
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-base font-extrabold text-blue-600 font-mono">
+                                {currInfo.symbol}
+                                {convertedPrice}
+                              </div>
+                              {originalConverted && (
+                                <div className="text-[10px] text-slate-400 line-through font-mono">
+                                  {currInfo.symbol}
+                                  {originalConverted}
+                                </div>
+                              )}
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                ~{currInfo.symbol}{dailyRate}/{lang === 'en' ? 'day' : '天'}
+                              </div>
+                            </div>
                           </div>
 
-                          <button
-                            onClick={() => onSelectPlan(selectedDestination, pkg)}
-                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-blue-500/10 active:scale-95 flex items-center space-x-1 cursor-pointer"
-                          >
-                            <span>{lang === 'en' ? 'Buy' : '购买'}</span>
-                            <ArrowRight className="h-3 w-3" />
-                          </button>
+                          {/* Features row */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
+                            <div className="flex flex-wrap gap-1">
+                              {pkg.features?.slice(0, 2).map((feat, fi) => (
+                                <span key={fi} className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono">
+                                  {feat}
+                                </span>
+                              ))}
+                            </div>
+
+                            <button
+                              onClick={() => onSelectPlan(selectedDestination, pkg)}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-blue-500/10 active:scale-95 flex items-center space-x-1 cursor-pointer"
+                            >
+                              <span>{lang === 'en' ? 'Buy eSIM' : '立即购买'}</span>
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
               {/* Secure Checkout Note */}
               <div className="pt-2 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
-                <Zap className="h-3 w-3 text-amber-500" />
+                <Lock className="h-3.5 w-3.5 text-slate-400" />
                 <span>
                   {lang === 'en'
-                    ? 'Apple Pay, Cards, WeChat Pay & Crypto Accepted'
-                    : '支持 Apple Pay, 信用卡, 微信/支付宝 与 加密货币支付'}
+                    ? 'Apple Pay, Visa/MC/Amex, WeChat Pay, Alipay & Crypto'
+                    : '支持 信用卡, Apple Pay, 微信, 支付宝, USDT 极速结算'}
                 </span>
               </div>
             </div>

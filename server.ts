@@ -125,6 +125,8 @@ async function startServer() {
         },
       },
       availableCoupons: [
+        { code: 'CAYLET20', description: '20% OFF Caylet Special', percent: 20 },
+        { code: 'AIDEN20', description: '20% OFF Aiden Channel Exclusive', percent: 20 },
         { code: 'LUMINA10', description: '10% OFF Storewide', percent: 10 },
         { code: 'VOYAGE20', description: '20% OFF Summer Special', percent: 20 },
         { code: 'FIRSTTRIP', description: '$3 OFF First Purchase', fixedUSD: 3 },
@@ -140,12 +142,14 @@ async function startServer() {
     }
 
     const clean = String(code).trim().toUpperCase();
-    if (clean === 'LUMINA10') {
-      return res.json({ valid: true, code: 'LUMINA10', percent: 10, fixedUSD: 0 });
+    if (clean === 'CAYLET20' || clean === 'AIDEN20') {
+      return res.json({ valid: true, code: clean, percent: 20, fixedUSD: 0, desc: '20% OFF Caylet Special' });
+    } else if (clean === 'LUMINA10') {
+      return res.json({ valid: true, code: 'LUMINA10', percent: 10, fixedUSD: 0, desc: '10% OFF Storewide' });
     } else if (clean === 'VOYAGE20') {
-      return res.json({ valid: true, code: 'VOYAGE20', percent: 20, fixedUSD: 0 });
+      return res.json({ valid: true, code: 'VOYAGE20', percent: 20, fixedUSD: 0, desc: '20% OFF Special' });
     } else if (clean === 'FIRSTTRIP') {
-      return res.json({ valid: true, code: 'FIRSTTRIP', percent: 0, fixedUSD: 3 });
+      return res.json({ valid: true, code: 'FIRSTTRIP', percent: 0, fixedUSD: 3, desc: '$3 OFF First Order' });
     } else {
       return res.status(400).json({ valid: false, message: 'Invalid or expired coupon code' });
     }
@@ -176,10 +180,10 @@ async function startServer() {
 
     if (couponCode) {
       const codeClean = String(couponCode).trim().toUpperCase();
-      if (codeClean === 'LUMINA10') {
-        discountUSD = basePriceUSD * 0.1;
-      } else if (codeClean === 'VOYAGE20') {
+      if (codeClean === 'CAYLET20' || codeClean === 'AIDEN20' || codeClean === 'VOYAGE20') {
         discountUSD = basePriceUSD * 0.2;
+      } else if (codeClean === 'LUMINA10') {
+        discountUSD = basePriceUSD * 0.1;
       } else if (codeClean === 'FIRSTTRIP') {
         discountUSD = Math.min(3, basePriceUSD);
       }
@@ -194,6 +198,7 @@ async function startServer() {
       GBP: 0.79,
       JPY: 155.0,
       CNY: 7.25,
+      HKD: 7.82,
     };
     const rate = rates[currency] || 1.0;
     const finalPriceConverted = Number((finalPriceUSD * rate).toFixed(2));
